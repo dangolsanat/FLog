@@ -8,6 +8,7 @@ struct FoodDairyApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(profileManager)
+                .preferredColorScheme(.dark)
         }
     }
 } 

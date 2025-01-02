@@ -3,12 +3,12 @@ import SwiftUI
 struct FoodEntryListView: View {
     @StateObject private var foodEntryService = FoodEntryService()
     @EnvironmentObject var profileManager: DeviceProfileManager
+    @Environment(\.colorScheme) private var colorScheme
     @State private var error: String?
     @State private var expandedPostId: UUID?
     @State private var isRefreshing = false
     @State private var showDeleteAlert = false
     @State private var entryToDelete: FoodEntry?
-    @State private var showEditSheet = false
     @State private var entryToEdit: FoodEntry?
     
     var body: some View {
@@ -29,21 +29,20 @@ struct FoodEntryListView: View {
                             
                             Button {
                                 entryToEdit = entry
-                                showEditSheet = true
                             } label: {
                                 Label("Edit", systemImage: "pencil")
                             }
                             .tint(.orange)
                         }
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                expandedPostId = expandedPostId == entry.id ? nil : entry.id
-                            }
+                            expandedPostId = expandedPostId == entry.id ? nil : entry.id
                         }
+                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: expandedPostId)
                 }
                 .listRowBackground(Color.clear)
             }
             .listStyle(.plain)
+            .background(Color(colorScheme == .dark ? .systemBackground : .systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -65,8 +64,8 @@ struct FoodEntryListView: View {
                     self.error = error.localizedDescription
                 }
             }
-            .sheet(isPresented: $showEditSheet) {
-                if let entry = entryToEdit {
+            .sheet(item: $entryToEdit) { entry in
+                NavigationView {
                     EditFoodEntryView(entry: entry) { updatedEntry in
                         Task {
                             do {

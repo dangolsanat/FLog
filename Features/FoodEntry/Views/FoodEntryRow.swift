@@ -3,6 +3,7 @@ import SwiftUI
 struct FoodEntryRow: View {
     let entry: FoodEntry
     let isExpanded: Bool
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         GeometryReader { geo in
@@ -13,17 +14,18 @@ struct FoodEntryRow: View {
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(width: geo.size.width, height: 300)
+                            .frame(width: geo.size.width, height: isExpanded ? 300 : 120)
                             .clipped()
                     } placeholder: {
                         Color.gray.opacity(0.3)
                     }
                 } else {
                     Color.gray.opacity(0.3)
+                        .frame(height: isExpanded ? 300 : 120)
                 }
                 
                 // Dark overlay
-                Color.black.opacity(0.4)
+                Color.black.opacity(colorScheme == .dark ? 0.6 : 0.4)
                 
                 // Content
                 HStack(alignment: .top, spacing: 12) {
@@ -61,7 +63,7 @@ struct FoodEntryRow: View {
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.7))
+                                    .background(Color.blue.opacity(colorScheme == .dark ? 0.5 : 0.7))
                                     .clipShape(Capsule())
                                     .padding(.top, 4)
                             }
@@ -72,11 +74,12 @@ struct FoodEntryRow: View {
                     Spacer(minLength: 16)
                     
                     // Right side: Calendar style date
-                    VStack(alignment: .center, spacing: 0) {
-                        if !isExpanded {
+                    if !isExpanded {
+                        VStack(alignment: .center, spacing: 0) {
                             HStack(alignment: .center, spacing: 8) {
                                 Text("\(entry.dateCreated.formatted(.dateTime.day()))")
                                     .font(.system(size: 56, weight: .bold))
+                                    .foregroundColor(.white)
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.dateCreated.formatted(.dateTime.month(.abbreviated)))
@@ -94,54 +97,92 @@ struct FoodEntryRow: View {
                                 }
                                 .padding(.vertical, 2)
                             }
+                            .padding(8)
+                            .background(Color.blue.opacity(colorScheme == .dark ? 0.4 : 0.3))
+                            .cornerRadius(8)
                         }
                     }
-                    .padding(8)
-                    .background(Color.blue.opacity(0.3))
-                    .cornerRadius(8)
                 }
                 .padding(12)
             }
+            .frame(height: isExpanded ? 300 : 120, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(Color(colorScheme == .dark ? .systemGray6 : .systemBackground))
         }
         .frame(height: isExpanded ? 300 : 120)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(Rectangle())
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isExpanded)
     }
 }
 
 #Preview {
-    VStack(spacing: 8) {
-        FoodEntryRow(
-            entry: FoodEntry(
-                id: UUID(),
-                deviceId: UUID(),
-                title: "Morning Oatmeal",
-                description: "Steel cut oats with berries and honey",
-                photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
-                mealType: .breakfast,
-                ingredients: ["Oats", "Berries", "Honey"],
-                dateCreated: Date(),
-                mealDate: Date()
-            ),
-            isExpanded: false
-        )
+    Group {
+        VStack(spacing: 8) {
+            FoodEntryRow(
+                entry: FoodEntry(
+                    id: UUID(),
+                    deviceId: UUID(),
+                    title: "Morning Oatmeal",
+                    description: "Steel cut oats with berries and honey",
+                    photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
+                    mealType: .breakfast,
+                    ingredients: ["Oats", "Berries", "Honey"],
+                    dateCreated: Date(),
+                    mealDate: Date()
+                ),
+                isExpanded: false
+            )
+            
+            FoodEntryRow(
+                entry: FoodEntry(
+                    id: UUID(),
+                    deviceId: UUID(),
+                    title: "Lunch Ramen",
+                    description: "Spicy miso ramen with extra noodles",
+                    photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
+                    mealType: .lunch,
+                    ingredients: ["Noodles", "Miso", "Egg"],
+                    dateCreated: Date(),
+                    mealDate: Date()
+                ),
+                isExpanded: true
+            )
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .preferredColorScheme(.light)
         
-        FoodEntryRow(
-            entry: FoodEntry(
-                id: UUID(),
-                deviceId: UUID(),
-                title: "Lunch Ramen",
-                description: "Spicy miso ramen with extra noodles",
-                photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
-                mealType: .lunch,
-                ingredients: ["Noodles", "Miso", "Egg"],
-                dateCreated: Date(),
-                mealDate: Date()
-            ),
-            isExpanded: true
-        )
+        VStack(spacing: 8) {
+            FoodEntryRow(
+                entry: FoodEntry(
+                    id: UUID(),
+                    deviceId: UUID(),
+                    title: "Morning Oatmeal",
+                    description: "Steel cut oats with berries and honey",
+                    photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
+                    mealType: .breakfast,
+                    ingredients: ["Oats", "Berries", "Honey"],
+                    dateCreated: Date(),
+                    mealDate: Date()
+                ),
+                isExpanded: false
+            )
+            
+            FoodEntryRow(
+                entry: FoodEntry(
+                    id: UUID(),
+                    deviceId: UUID(),
+                    title: "Lunch Ramen",
+                    description: "Spicy miso ramen with extra noodles",
+                    photoURL: "https://hikarimiso.com/wp-content/uploads/2024/05/Trimmed_03_Miso-Ramen_02_M.jpg.webp",
+                    mealType: .lunch,
+                    ingredients: ["Noodles", "Miso", "Egg"],
+                    dateCreated: Date(),
+                    mealDate: Date()
+                ),
+                isExpanded: true
+            )
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .preferredColorScheme(.dark)
     }
-    .padding()
-    .background(Color(.systemBackground))
 } 

@@ -51,6 +51,8 @@ struct MainTabView: View {
         }
         .environment(\.tabSelection, $selectedTab)
         .environmentObject(profileManager)
+        .background(Color(uiColor: .systemBackground))
+        .accentColor(.blue)
     }
 }
 
