@@ -23,7 +23,15 @@ struct FoodEntryListView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
             }
-            .navigationTitle("Food Diary")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Image("flog-logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 32)
+                }
+            }
             .refreshable {
                 let task = Task {
                     try await foodEntryService.fetchEntries()
