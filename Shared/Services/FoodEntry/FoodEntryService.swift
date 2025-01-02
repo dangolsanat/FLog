@@ -1,13 +1,14 @@
 import Foundation
 import PhotosUI
 import SwiftUI
+import UIKit
 
-enum FeedType {
+public enum FeedType {
     case personal
     case all
     case random
     
-    var queryParams: [URLQueryItem] {
+    public var queryParams: [URLQueryItem] {
         switch self {
         case .personal:
             if let deviceId = UIDevice.current.identifierForVendor {
@@ -31,20 +32,20 @@ enum FeedType {
 }
 
 @MainActor
-class FoodEntryService: ObservableObject {
-    @Published private(set) var entries: [FoodEntry] = []
-    @Published private(set) var isLoading = false
-    @Published private(set) var uploadProgress: Double?
+public class FoodEntryService: ObservableObject {
+    @Published public private(set) var entries: [FoodEntry] = []
+    @Published public private(set) var isLoading = false
+    @Published public private(set) var uploadProgress: Double?
     
-    private let imageUploadService: ImageUploader
+    private let imageUploadService: ImageUploadService
     private let feedType: FeedType
     
-    init(feedType: FeedType = .personal) {
+    public init(feedType: FeedType = .personal) {
         self.imageUploadService = ImageUploadService(bucket: DatabaseConfig.foodImagesBucket)
         self.feedType = feedType
     }
     
-    func fetchEntries() async throws {
+    public func fetchEntries() async throws {
         isLoading = true
         defer { isLoading = false }
         
@@ -59,10 +60,10 @@ class FoodEntryService: ObservableObject {
         self.entries = entries
     }
     
-    func addEntry(
+    public func addEntry(
         title: String,
         description: String,
-        mealType: MealType,
+        mealType: FoodEntry.MealType,
         ingredients: [String],
         photo: PhotosPickerItem?,
         mealDate: Date
@@ -85,7 +86,7 @@ class FoodEntryService: ObservableObject {
                 guard let imageData = try await photo.loadTransferable(type: Data.self),
                       let uiImage = UIImage(data: imageData),
                       let processedImageData = ImageProcessor.processForUpload(uiImage) else {
-                    throw ImageUploadError.invalidImageData
+                    throw NetworkError.invalidResponse
                 }
                 
                 // Simulate upload progress
@@ -114,7 +115,7 @@ class FoodEntryService: ObservableObject {
             )
             
             // Create the entry in the database
-            var urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
+            let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
             guard let url = urlComponents.url else {
                 throw NetworkError.invalidResponse
             }
@@ -142,6 +143,65 @@ class FoodEntryService: ObservableObject {
     
     private func sortEntries() {
         entries.sort { $0.mealDate > $1.mealDate }
+    }
+    
+    public func deleteEntry(_ entry: FoodEntry) async throws {
+        let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
+        var components = urlComponents
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(entry.id)")
+        ]
+        
+        guard let url = components.url else {
+            throw NetworkError.invalidResponse
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        // Add Supabase headers
+        let headers = NetworkManager.shared.getSupabaseHeaders()
+        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        
+        let _: EmptyResponse = try await NetworkManager.shared.performRequest(request)
+        
+        // Update local state
+        if feedType == .personal {
+            entries.removeAll { $0.id == entry.id }
+        }
+    }
+    
+    public func updateEntry(_ entry: FoodEntry) async throws {
+        let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
+        var components = urlComponents
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(entry.id)")
+        ]
+        
+        guard let url = components.url else {
+            throw NetworkError.invalidResponse
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(entry)
+        
+        // Add Supabase headers
+        let headers = NetworkManager.shared.getSupabaseHeaders()
+        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        
+        let _: EmptyResponse = try await NetworkManager.shared.performRequest(request)
+        
+        // Update local state
+        if feedType == .personal {
+            if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+                entries[index] = entry
+                sortEntries()
+            }
+        }
     }
     
     deinit {

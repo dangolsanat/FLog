@@ -1,18 +1,30 @@
 import SwiftUI
 import PhotosUI
 
-struct AddFoodEntryView: View {
-    @ObservedObject var foodEntryService: FoodEntryService
-    @Environment(\.tabSelection) var tabSelection
+struct EditFoodEntryView: View {
+    let entry: FoodEntry
+    let onSave: (FoodEntry) -> Void
     
-    @State private var title = ""
-    @State private var description = ""
-    @State private var selectedMealType = FoodEntry.MealType.breakfast
-    @State private var ingredients: [String] = [""]
+    @Environment(\.dismiss) var dismiss
+    @State private var title: String
+    @State private var description: String
+    @State private var selectedMealType: FoodEntry.MealType
+    @State private var ingredients: [String]
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var selectedDate = Date()
-    @State private var error: String?
+    @State private var selectedDate: Date
     @StateObject private var imageViewModel = ImageViewModel()
+    @State private var isLoading = false
+    @State private var error: String?
+    
+    init(entry: FoodEntry, onSave: @escaping (FoodEntry) -> Void) {
+        self.entry = entry
+        self.onSave = onSave
+        _title = State(initialValue: entry.title)
+        _description = State(initialValue: entry.description ?? "")
+        _selectedMealType = State(initialValue: entry.mealType)
+        _ingredients = State(initialValue: entry.ingredients.isEmpty ? [""] : entry.ingredients)
+        _selectedDate = State(initialValue: entry.mealDate)
+    }
     
     var body: some View {
         NavigationView {
@@ -54,57 +66,57 @@ struct AddFoodEntryView: View {
                                 .scaledToFit()
                                 .frame(maxHeight: 200)
                         } else {
-                            Color.gray.opacity(0.3)
-                                .frame(height: 200)
-                                .overlay {
-                                    Image(systemName: "photo")
-                                        .font(.largeTitle)
-                                        .foregroundColor(.white)
-                                }
-                        }
-                    }
-                }
-                
-                if let progress = foodEntryService.uploadProgress {
-                    Section {
-                        ProgressView(value: progress) {
-                            Text("Uploading...")
+                            AsyncImage(url: URL(string: entry.photoURL ?? "")) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 200)
+                            } placeholder: {
+                                Color.gray.opacity(0.3)
+                                    .frame(height: 200)
+                                    .overlay {
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.white)
+                                    }
+                            }
                         }
                     }
                 }
             }
-            .navigationTitle("Add Food Entry")
+            .navigationTitle("Edit Post")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
-                        Task {
-                            do {
-                                try await foodEntryService.addEntry(
-                                    title: title,
-                                    description: description,
-                                    mealType: selectedMealType,
-                                    ingredients: ingredients,
-                                    photo: selectedPhoto,
-                                    mealDate: selectedDate
-                                )
-                                // Reset form
-                                title = ""
-                                description = ""
-                                selectedMealType = .breakfast
-                                ingredients = [""]
-                                selectedPhoto = nil
-                                selectedDate = Date()
-                                imageViewModel.selectedImage = nil
-                                
-                                // Switch to home tab
-                                tabSelection.wrappedValue = 0
-                            } catch {
-                                self.error = error.localizedDescription
-                            }
-                        }
+                        isLoading = true
+                        let updatedEntry = FoodEntry(
+                            id: entry.id,
+                            deviceId: entry.deviceId,
+                            title: title,
+                            description: description.isEmpty ? nil : description,
+                            photoURL: entry.photoURL,
+                            mealType: selectedMealType,
+                            ingredients: ingredients.filter { !$0.isEmpty },
+                            dateCreated: entry.dateCreated,
+                            mealDate: selectedDate
+                        )
+                        onSave(updatedEntry)
+                        dismiss()
                     }
-                    .disabled(title.isEmpty || foodEntryService.isLoading)
+                    .disabled(title.isEmpty || isLoading)
+                }
+            }
+            .disabled(isLoading)
+            .overlay {
+                if isLoading {
+                    ProgressView()
                 }
             }
             .alert("Error", isPresented: .constant(error != nil), actions: {

@@ -34,9 +34,22 @@ DROP INDEX IF EXISTS food_entries_meal_date_idx;
 CREATE INDEX food_entries_device_id_idx ON public.food_entries(device_id);
 CREATE INDEX food_entries_meal_date_idx ON public.food_entries(meal_date DESC);
 
--- Enable RLS but allow all operations with a single policy
+-- Enable RLS
 ALTER TABLE public.food_entries ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Temporary allow all operations"
-ON public.food_entries FOR ALL
-USING (true); 
+-- Create policies for different operations
+CREATE POLICY "Food entries are viewable by everyone"
+ON public.food_entries FOR SELECT
+USING (true);
+
+CREATE POLICY "Users can insert own food entries"
+ON public.food_entries FOR INSERT
+WITH CHECK (device_id = app.get_device_id());
+
+CREATE POLICY "Users can update own food entries"
+ON public.food_entries FOR UPDATE
+USING (device_id = app.get_device_id());
+
+CREATE POLICY "Users can delete own food entries"
+ON public.food_entries FOR DELETE
+USING (device_id = app.get_device_id()); 

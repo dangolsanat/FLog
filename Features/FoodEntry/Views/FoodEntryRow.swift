@@ -8,7 +8,7 @@ struct FoodEntryRow: View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
                 // Background image
-                if let url = entry.imageURL {
+                if let url = URL(string: entry.photoURL ?? "") {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -73,31 +73,28 @@ struct FoodEntryRow: View {
                     
                     // Right side: Calendar style date
                     VStack(alignment: .center, spacing: 0) {
-                        Group {
-                            if !isExpanded {
-                                HStack(alignment: .center, spacing: 8) {
-                                    Text("\(entry.dateCreated.formatted(.dateTime.day()))")
-                                        .font(.system(size: 56, weight: .bold))
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(entry.dateCreated.formatted(.dateTime.month(.abbreviated)))
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.9))
-                                        
-                                        Text(entry.dateCreated.formatted(.dateTime.year()))
-                                            .font(.caption2)
-                                            .foregroundColor(.white.opacity(0.8))
-                                            
-                                        Text(entry.dateCreated.formatted(.dateTime.weekday(.abbreviated)))
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.white)
-                                    }
-                                    .padding(.vertical, 2)
+                        if !isExpanded {
+                            HStack(alignment: .center, spacing: 8) {
+                                Text("\(entry.dateCreated.formatted(.dateTime.day()))")
+                                    .font(.system(size: 56, weight: .bold))
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.dateCreated.formatted(.dateTime.month(.abbreviated)))
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.9))
+                                    
+                                    Text(entry.dateCreated.formatted(.dateTime.year()))
+                                        .font(.caption2)
+                                        .foregroundColor(.white.opacity(0.8))
+                                    
+                                    Text(entry.dateCreated.formatted(.dateTime.weekday(.abbreviated)))
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.white)
                                 }
+                                .padding(.vertical, 2)
                             }
                         }
-                        .foregroundColor(.white)
                     }
                     .padding(8)
                     .background(Color.blue.opacity(0.3))

@@ -169,6 +169,7 @@ struct RandomFeedView: View {
 }
 
 #Preview {
+    
     MainTabView()
         .environmentObject(DeviceProfileManager.shared)
 }

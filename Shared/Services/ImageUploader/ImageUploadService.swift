@@ -1,51 +1,40 @@
 import Foundation
-
-enum ImageUploadError: Error, LocalizedError {
-    case invalidImageData
-    case uploadFailed(Error)
-    case invalidResponse
-    case serverError(Int, String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidImageData:
-            return "Invalid image data"
-        case .uploadFailed(let error):
-            return "Upload failed: \(error.localizedDescription)"
-        case .invalidResponse:
-            return "Invalid server response"
-        case .serverError(let code, let message):
-            return "Server error (\(code)): \(message)"
-        }
-    }
-}
+import UIKit
 
 @MainActor
-class ImageUploadService: ImageUploader {
-    private let storageURL: URL
+public class ImageUploadService: ImageUploaderProtocol {
     private let bucket: String
     private let networkManager = NetworkManager.shared
     
-    init(bucket: String) {
+    public init(bucket: String) {
         self.bucket = bucket
-        self.storageURL = Config.supabaseURL.appendingPathComponent("storage/v1/object")
     }
     
-    func uploadImage(_ imageData: Data) async throws -> String {
-        let filename = "\(UUID().uuidString).jpg"
-        let url = storageURL.appendingPathComponent(bucket).appendingPathComponent(filename)
+    public func uploadImage(_ imageData: Data) async throws -> String {
+        let fileName = "\(UUID().uuidString).jpg"
+        let path = "\(bucket)/\(fileName)"
         
-        print("Uploading to URL: \(url.absoluteString)")
+        // Create URL for storage upload
+        let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("storage/v1/object/\(path)"), resolvingAgainstBaseURL: true)!
         
-        do {
-            let key = try await networkManager.upload(imageData, to: url)
-            // Fix: Use the correct public URL format for Supabase storage
-            let publicURL = "\(Config.supabaseURL.absoluteString)/storage/v1/object/public/\(bucket)/\(filename)"
-            print("Upload successful: \(publicURL)")
-            return publicURL
-        } catch {
-            print("Upload failed: \(error)")
-            throw error
+        guard let url = urlComponents.url else {
+            throw NetworkError.invalidResponse
         }
+        
+        // Create upload request
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = imageData
+        
+        // Add headers
+        let headers = networkManager.getSupabaseHeaders()
+        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        
+        // Upload image
+        let _: EmptyResponse = try await networkManager.performRequest(request)
+        
+        // Return the public URL
+        return "\(Config.supabaseURL.absoluteString)/storage/v1/object/public/\(path)"
     }
 } 
