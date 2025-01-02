@@ -14,6 +14,7 @@ struct AddFoodEntryView: View {
     @State private var error: String?
     @StateObject private var imageViewModel = ImageViewModel()
     @State private var selectedDate = Date()
+    @Environment(\.tabSelection) private var tabSelection
     
     var body: some View {
         NavigationView {
@@ -113,7 +114,11 @@ struct AddFoodEntryView: View {
                     photo: selectedPhoto,
                     mealDate: selectedDate
                 )
-                resetForm()
+                await MainActor.run {
+                    isLoading = false
+                    resetForm()
+                    tabSelection.wrappedValue = 0 // Switch to home tab
+                }
             } catch {
                 self.error = error.localizedDescription
                 print("Upload error: \(error)")

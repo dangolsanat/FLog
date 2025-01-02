@@ -1,5 +1,16 @@
 import SwiftUI
 
+private struct TabSelectionKey: EnvironmentKey {
+    static let defaultValue: Binding<Int> = .constant(0)
+}
+
+extension EnvironmentValues {
+    var tabSelection: Binding<Int> {
+        get { self[TabSelectionKey.self] }
+        set { self[TabSelectionKey.self] = newValue }
+    }
+}
+
 struct MainTabView: View {
     @State private var selectedTab = 0
     @StateObject private var foodEntryService = FoodEntryService()
@@ -38,12 +49,7 @@ struct MainTabView: View {
                 }
                 .tag(4)
         }
-        .navigationBarItems(trailing: 
-            Button(action: {}) {
-                Image(systemName: "calendar")
-                    .font(.title2)
-            }
-        )
+        .environment(\.tabSelection, $selectedTab)
         .environmentObject(profileManager)
     }
 }
