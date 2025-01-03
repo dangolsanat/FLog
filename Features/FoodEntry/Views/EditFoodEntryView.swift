@@ -52,6 +52,9 @@ struct EditFoodEntryView: View {
                 }
                 .onDelete { indices in
                     ingredients.remove(atOffsets: indices)
+                    if ingredients.isEmpty {
+                        ingredients = [""]
+                    }
                 }
                 
                 Button("Add Ingredient") {
@@ -60,32 +63,23 @@ struct EditFoodEntryView: View {
             }
             
             Section("Photo") {
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    if let image = imageViewModel.selectedImage {
+                if let url = URL(string: entry.photoURL ?? "") {
+                    AsyncImage(url: url) { image in
                         image
                             .resizable()
                             .scaledToFit()
-                            .frame(maxHeight: 200)
-                    } else {
-                        AsyncImage(url: URL(string: entry.photoURL ?? "")) { image in
-                            image
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 200)
-                        } placeholder: {
-                            Color.gray.opacity(0.3)
-                                .frame(height: 200)
-                                .overlay {
-                                    Image(systemName: "photo")
-                                        .font(.largeTitle)
-                                        .foregroundColor(.white)
-                                }
-                        }
+                            .frame(height: 200)
+                    } placeholder: {
+                        Color.gray.opacity(0.3)
+                            .frame(height: 200)
+                            .overlay {
+                                ProgressView()
+                            }
                     }
                 }
             }
         }
-        .navigationTitle("Edit Post")
+        .navigationTitle("Edit Entry")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -97,6 +91,7 @@ struct EditFoodEntryView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Save") {
                     isLoading = true
+                    let filteredIngredients = ingredients.filter { !$0.isEmpty }
                     let updatedEntry = FoodEntry(
                         id: entry.id,
                         deviceId: entry.deviceId,
@@ -104,7 +99,7 @@ struct EditFoodEntryView: View {
                         description: description.isEmpty ? nil : description,
                         photoURL: entry.photoURL,
                         mealType: selectedMealType,
-                        ingredients: ingredients.filter { !$0.isEmpty },
+                        ingredients: filteredIngredients,
                         dateCreated: entry.dateCreated,
                         mealDate: selectedDate
                     )
@@ -118,16 +113,6 @@ struct EditFoodEntryView: View {
         .overlay {
             if isLoading {
                 ProgressView()
-            }
-        }
-        .alert("Error", isPresented: .constant(error != nil), actions: {
-            Button("OK") { error = nil }
-        }, message: {
-            Text(error ?? "Unknown error")
-        })
-        .onChange(of: selectedPhoto) { newValue in
-            if let item = newValue {
-                imageViewModel.loadImage(from: item)
             }
         }
     }

@@ -2,6 +2,7 @@ import Foundation
 import PhotosUI
 import SwiftUI
 import UIKit
+import Supabase
 
 public enum FeedType {
     case personal
@@ -39,25 +40,118 @@ public class FoodEntryService: ObservableObject {
     
     private let imageUploadService: ImageUploadService
     private let feedType: FeedType
+    private let supabase: SupabaseClient
     
     public init(feedType: FeedType = .personal) {
         self.imageUploadService = ImageUploadService(bucket: DatabaseConfig.foodImagesBucket)
         self.feedType = feedType
+        self.supabase = SupabaseClient(
+            supabaseURL: Config.supabaseURL,
+            supabaseKey: Config.supabaseAnonKey
+        )
     }
     
-    public func fetchEntries() async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
-        var urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
-        urlComponents.queryItems = feedType.queryParams
-        
-        guard let url = urlComponents.url else {
-            throw NetworkError.invalidResponse
+    @MainActor
+    func fetchEntries(searchQuery: String? = nil) async throws {
+        if feedType == .personal {
+            let functionName = "get_device_feed"
+            guard let deviceId = UUID(uuidString: UIDevice.current.identifierForVendor?.uuidString ?? "") else {
+                throw NetworkError.deviceIdNotAvailable
+            }
+            
+            if let searchQuery = searchQuery {
+                // Use the two-parameter version when search query is provided
+                struct RPCParams: Encodable {
+                    let target_device_id: UUID
+                    let search_query: String
+                }
+                
+                let params = RPCParams(
+                    target_device_id: deviceId,
+                    search_query: searchQuery
+                )
+                
+                let response: [FoodEntry] = try await supabase.database
+                    .rpc(functionName, params: params)
+                    .execute()
+                    .value
+                
+                entries = response
+            } else {
+                // Use the single-parameter version when no search query
+                struct RPCParams: Encodable {
+                    let target_device_id: UUID
+                }
+                
+                let params = RPCParams(
+                    target_device_id: deviceId
+                )
+                
+                let response: [FoodEntry] = try await supabase.database
+                    .rpc(functionName, params: params)
+                    .execute()
+                    .value
+                
+                entries = response
+            }
+        } else if feedType == .random {
+            let response: [FoodEntry] = try await supabase.database
+                .from("food_entries")
+                .select()
+                .order("RANDOM()")
+                .limit(1)
+                .execute()
+                .value
+            entries = response
+        } else {
+            let response: [FoodEntry] = try await supabase.database
+                .from("food_entries")
+                .select()
+                .order("meal_date", ascending: false)
+                .execute()
+                .value
+            entries = response
         }
+    }
+    
+    @MainActor
+    func createEntry(_ entry: FoodEntry) async throws {
+        let response: FoodEntry = try await supabase.database
+            .from("food_entries")
+            .insert(entry)
+            .select()
+            .single()
+            .execute()
+            .value
         
-        let entries: [FoodEntry] = try await NetworkManager.shared.request(url)
-        self.entries = entries
+        entries.insert(response, at: 0)
+    }
+    
+    @MainActor
+    func updateEntry(_ entry: FoodEntry) async throws {
+        let response: FoodEntry = try await supabase.database
+            .from("food_entries")
+            .update(entry)
+            .eq("id", value: entry.id)
+            .select()
+            .single()
+            .execute()
+            .value
+        
+        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            entries[index] = response
+        }
+    }
+    
+    @MainActor
+    func deleteEntry(_ entry: FoodEntry) async throws {
+        try await supabase.database
+            .from("food_entries")
+            .delete()
+            .eq("id", value: entry.id)
+            .execute()
+        
+        entries.removeAll { $0.id == entry.id }
     }
     
     public func addEntry(
@@ -102,38 +196,63 @@ public class FoodEntryService: ObservableObject {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             
+            // Filter out empty ingredients and ensure array is not empty
+            print("DEBUG: Service - Original ingredients count: \(ingredients.count)")
+            print("DEBUG: Service - Original ingredients: \(ingredients)")
+            
+            // Trim whitespace and filter out empty ingredients
+            let filteredIngredients = ingredients.map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            print("DEBUG: Service - Filtered ingredients count: \(filteredIngredients.count)")
+            print("DEBUG: Service - Filtered ingredients: \(filteredIngredients)")
+            
+            // Ensure we always have at least one ingredient, even if empty
+            let finalIngredients = filteredIngredients.isEmpty ? [""] : filteredIngredients
+            print("DEBUG: Service - Final ingredients count: \(finalIngredients.count)")
+            print("DEBUG: Service - Final ingredients: \(finalIngredients)")
+            
             let newEntry = FoodEntry(
                 id: UUID(),
                 deviceId: deviceId,
-                title: title,
-                description: description,
-                photoURL: photoURL,
+                title: title.trimmingCharacters(in: .whitespaces),
+                description: description.trimmingCharacters(in: .whitespaces),
+                photoURL: photoURL.isEmpty ? nil : photoURL,
                 mealType: mealType,
-                ingredients: ingredients.filter { !$0.isEmpty },
+                ingredients: finalIngredients,
                 dateCreated: Date(),
                 mealDate: mealDate
             )
             
+            print("DEBUG: About to insert entry with ingredients: \(newEntry.ingredients)")
+            
             // Create the entry in the database
-            let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
-            guard let url = urlComponents.url else {
-                throw NetworkError.invalidResponse
-            }
+            let response: FoodEntry = try await supabase.database
+                .from("food_entries")
+                .insert(newEntry)
+                .select()
+                .single()
+                .execute()
+                .value
             
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.httpBody = try encoder.encode(newEntry)
-            
-            // Add Supabase headers
-            let headers = NetworkManager.shared.getSupabaseHeaders()
-            headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-            
-            let _: EmptyResponse = try await NetworkManager.shared.performRequest(request)
+            print("DEBUG: Successfully inserted entry, response ingredients: \(response.ingredients)")
             
             // Update local state
             if feedType == .personal {
-                entries.insert(newEntry, at: 0)
-                sortEntries()
+                print("DEBUG: Current entries count before insert: \(entries.count)")
+                print("DEBUG: Attempting to insert at index 0")
+                
+                // Create a new array instead of modifying in place
+                var updatedEntries = entries
+                updatedEntries.insert(response, at: 0)
+                print("DEBUG: Entries count after insert: \(updatedEntries.count)")
+                
+                // Sort the new array
+                updatedEntries.sort { $0.mealDate > $1.mealDate }
+                print("DEBUG: Entries count after sort: \(updatedEntries.count)")
+                
+                // Update the published array
+                entries = updatedEntries
+                print("DEBUG: Final entries count: \(entries.count)")
             }
         } catch is CancellationError {
             print("Add entry task was cancelled")
@@ -143,65 +262,6 @@ public class FoodEntryService: ObservableObject {
     
     private func sortEntries() {
         entries.sort { $0.mealDate > $1.mealDate }
-    }
-    
-    public func deleteEntry(_ entry: FoodEntry) async throws {
-        let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
-        var components = urlComponents
-        components.queryItems = [
-            URLQueryItem(name: "id", value: "eq.\(entry.id)")
-        ]
-        
-        guard let url = components.url else {
-            throw NetworkError.invalidResponse
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        
-        // Add Supabase headers
-        let headers = NetworkManager.shared.getSupabaseHeaders()
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-        
-        let _: EmptyResponse = try await NetworkManager.shared.performRequest(request)
-        
-        // Update local state
-        if feedType == .personal {
-            entries.removeAll { $0.id == entry.id }
-        }
-    }
-    
-    public func updateEntry(_ entry: FoodEntry) async throws {
-        let urlComponents = URLComponents(url: Config.supabaseURL.appendingPathComponent("rest/v1/food_entries"), resolvingAgainstBaseURL: true)!
-        var components = urlComponents
-        components.queryItems = [
-            URLQueryItem(name: "id", value: "eq.\(entry.id)")
-        ]
-        
-        guard let url = components.url else {
-            throw NetworkError.invalidResponse
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        request.httpBody = try encoder.encode(entry)
-        
-        // Add Supabase headers
-        let headers = NetworkManager.shared.getSupabaseHeaders()
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-        
-        let _: EmptyResponse = try await NetworkManager.shared.performRequest(request)
-        
-        // Update local state
-        if feedType == .personal {
-            if let index = entries.firstIndex(where: { $0.id == entry.id }) {
-                entries[index] = entry
-                sortEntries()
-            }
-        }
     }
     
     deinit {

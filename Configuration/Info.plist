@@ -2,10 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSCameraUsageDescription</key>
-    <string>We need access to your camera to take photos of your meals.</string>
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>fooddairy</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.example.fooddairy</string>
+        </dict>
+    </array>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>We need access to your photo library to select photos of your meals.</string>
+    <string>We need access to your photo library to allow you to select photos for your food entries.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>We need access to your camera to allow you to take photos for your food entries.</string>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>
@@ -38,6 +51,6 @@
         <string>UIInterfaceOrientationPortrait</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Dark</string>
 </dict>
 </plist> 
