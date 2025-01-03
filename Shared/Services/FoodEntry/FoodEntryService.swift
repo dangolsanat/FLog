@@ -98,11 +98,12 @@ public class FoodEntryService: ObservableObject {
             let response: [FoodEntry] = try await supabase.database
                 .from("food_entries")
                 .select()
-                .order("RANDOM()")
-                .limit(1)
+                .order("created_at", ascending: false)
+                .limit(20)
                 .execute()
                 .value
-            entries = response
+            
+            entries = response.shuffled()
         } else {
             let response: [FoodEntry] = try await supabase.database
                 .from("food_entries")

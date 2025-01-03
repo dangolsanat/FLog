@@ -76,9 +76,12 @@ struct FoodEntryListView: View {
                     } else {
                         ForEach(foodEntryService.entries) { entry in
                             FoodEntryRow(entry: entry, isExpanded: expandedPostId == entry.id)
-                                .listRowInsets(EdgeInsets())
+                                .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                                 .listRowSeparator(.hidden)
-                                .padding(.vertical, 6)
+                                .onTapGesture {
+                                    expandedPostId = expandedPostId == entry.id ? nil : entry.id
+                                }
+                                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: expandedPostId)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         entryToDelete = entry
@@ -94,10 +97,6 @@ struct FoodEntryListView: View {
                                     }
                                     .tint(.orange)
                                 }
-                                .onTapGesture {
-                                    expandedPostId = expandedPostId == entry.id ? nil : entry.id
-                                }
-                                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: expandedPostId)
                         }
                         .listRowBackground(Color.clear)
                     }
